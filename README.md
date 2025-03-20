@@ -62,9 +62,9 @@ $ catocli query siteLocation '{"filters":[{"search": "San Diego","field":"city",
 
 ## Authors
 
-Module is maintained by [Cato Networks](https://github.com/catonetworks) with help from [these awesome contributors](https://github.com/catonetworks/terraform-cato-vsocket-azure-vnet/graphs/contributors).
+Module is maintained by [Cato Networks](https://github.com/catonetworks) with help from [these awesome contributors](https://github.com/catonetworks/terraform-cato-vsocket-azure-ha/graphs/contributors).
 
 ## License
 
-Apache 2 Licensed. See [LICENSE](https://github.com/catonetworks/terraform-cato-vsocket-azure-vnet/tree/master/LICENSE) for full details.
+Apache 2 Licensed. See [LICENSE](https://github.com/catonetworks/terraform-cato-vsocket-azure-ha/tree/master/LICENSE) for full details.
 
