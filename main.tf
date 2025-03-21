@@ -66,6 +66,25 @@ resource "azurerm_user_assigned_identity" "CatoHaIdentity" {
   resource_group_name = var.resource_group_name
 }
 
+# Create route table and associate to lanSubnet
+resource "azurerm_route_table" "route_table" {
+  location                      = var.location
+  name                          = "${var.site_name}-Route-Table"
+  resource_group_name           = var.resource_group_name
+  
+  route {
+      address_prefix         = "0.0.0.0/0"
+      name                   = "Default_to_Cato"
+      next_hop_in_ip_address = var.floating_ip
+      next_hop_type          = "VirtualAppliance"
+    }
+}
+
+resource "azurerm_subnet_route_table_association" "lan_subnet_association" {
+  subnet_id      = data.azurerm_network_interface.lan_primary.ip_configuration[0].subnet_id
+  route_table_id = azurerm_route_table.route_table.id
+}
+
 # Create Primary Vsocket Virtual Machine
 resource "azurerm_virtual_machine" "vsocket_primary" {
   location                     = var.location
@@ -171,18 +190,6 @@ resource "null_resource" "configure_secondary_azure_vsocket" {
           },
           "operationName": "siteAddSecondaryAzureVSocket"
         }' )
-
-      # Extract 'site_id' from the GraphQL response
-      site_id=$(echo $response | jq -r '.data.site.addSecondaryAzureVSocket.id // empty')
-
-      # Check if the site_id is valid
-      if [ -z "$site_id" ]; then
-        echo "Error: Site ID not found in response" >&2
-        exit 1
-      fi
-
-      # Write the site_id to the file in the format '<site_id>'
-      echo "$site_id" > ${path.module}/secondary_azure_vsocket_id.txt
     EOF
   }
 

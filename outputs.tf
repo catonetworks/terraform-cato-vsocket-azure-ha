@@ -139,3 +139,7 @@ output "vsocket_secondary_reboot_status" {
   value       = "Reboot triggered via Terraform"
   depends_on  = [null_resource.reboot_vsocket_secondary]
 }
+
+output "subnet_id" {
+  value = data.azurerm_network_interface.lan_secondary.ip_configuration[0].subnet_id
+}
