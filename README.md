@@ -19,8 +19,8 @@ List of resources:
 ## Usage
 
 ```hcl
-module "vsocket-azure-vnet-ha" {
-  source                  = "catonetworks/vsocket-azure-vnet-ha/cato"
+module "vsocket-azure-ha" {
+  source                  = "catonetworks/vsocket-azure-ha/cato"
   token                   = "xxxxxxx"
   account_id              = "xxxxxxx"
   location                = "East US"
