@@ -1,5 +1,6 @@
 ## vSocket Module Resources
 provider "azurerm" {
+        subscription_id = var.azure_subscription_id
   features {}
 }
 
@@ -143,10 +144,18 @@ SETTINGS
   ]
 }
 
+# Time delay to allow for vsockets to upgrade
+resource "null_resource" "delay-120" {
+  depends_on = [ azurerm_virtual_machine_extension.vsocket-custom-script-primary ]
+  provisioner "local-exec" {
+    command = "sleep 120"
+  }
+}
+
 #################################################################################
 # Add secondary socket to site via API until socket_site resrouce is updated to natively support
 resource "null_resource" "configure_secondary_azure_vsocket" {
-  depends_on = [azurerm_virtual_machine_extension.vsocket-custom-script-primary]
+  depends_on = [ null_resource.delay-120 ]
 
   provisioner "local-exec" {
     command = <<EOF
@@ -171,18 +180,6 @@ resource "null_resource" "configure_secondary_azure_vsocket" {
           },
           "operationName": "siteAddSecondaryAzureVSocket"
         }' )
-
-      # Extract 'site_id' from the GraphQL response
-      site_id=$(echo $response | jq -r '.data.site.addSecondaryAzureVSocket.id // empty')
-
-      # Check if the site_id is valid
-      if [ -z "$site_id" ]; then
-        echo "Error: Site ID not found in response" >&2
-        exit 1
-      fi
-
-      # Write the site_id to the file in the format '<site_id>'
-      echo "$site_id" > ${path.module}/secondary_azure_vsocket_id.txt
     EOF
   }
 
@@ -374,4 +371,12 @@ resource "null_resource" "reboot_vsocket_secondary" {
   depends_on = [
     null_resource.run_command_ha_secondary
   ]
+}
+
+# Time delay to allow for vsockets to configure HA
+resource "null_resource" "delay_ha" {
+  depends_on = [ null_resource.run_command_ha_secondary ]
+  provisioner "local-exec" {
+    command = "sleep 300"
+  }
 }
