@@ -1,15 +1,4 @@
 ## vSocket Module Resources
-provider "azurerm" {
-        subscription_id = var.azure_subscription_id
-  features {}
-}
-
-provider "cato" {
-  baseurl    = var.baseurl
-  token      = var.token
-  account_id = var.account_id
-}
-
 data "azurerm_network_interface" "mgmt_primary" {
   name                = var.mgmt_nic_name_primary
   resource_group_name = var.resource_group_name
@@ -85,17 +74,17 @@ resource "azurerm_virtual_machine" "vsocket_primary" {
     storage_uri = ""
   }
   storage_os_disk {
-    create_option     = "Attach"
-    name              = "${var.site_name}-vSocket-disk-primary"
-    managed_disk_id   = azurerm_managed_disk.vSocket_disk_primary.id
-    os_type = "Linux"
+    create_option   = "Attach"
+    name            = "${var.site_name}-vSocket-disk-primary"
+    managed_disk_id = azurerm_managed_disk.vSocket_disk_primary.id
+    os_type         = "Linux"
   }
 
   identity {
-    type = "UserAssigned"
+    type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.CatoHaIdentity.id]
   }
-  
+
   depends_on = [
     azurerm_managed_disk.vSocket_disk_primary
   ]
@@ -116,12 +105,12 @@ resource "azurerm_managed_disk" "vSocket_disk_primary" {
 }
 
 variable "commands" {
-  type    = list(string)
+  type = list(string)
   default = [
     "rm /cato/deviceid.txt",
     "rm /cato/socket/configuration/socket_registration.json",
     "nohup /cato/socket/run_socket_daemon.sh &"
-   ]
+  ]
 }
 
 resource "azurerm_virtual_machine_extension" "vsocket-custom-script-primary" {
@@ -145,17 +134,17 @@ SETTINGS
 }
 
 # Time delay to allow for vsockets to upgrade
-resource "null_resource" "delay-120" {
-  depends_on = [ azurerm_virtual_machine_extension.vsocket-custom-script-primary ]
+resource "null_resource" "delay-300" {
+  depends_on = [azurerm_virtual_machine_extension.vsocket-custom-script-primary]
   provisioner "local-exec" {
-    command = "sleep 120"
+    command = "sleep 300"
   }
 }
 
 #################################################################################
 # Add secondary socket to site via API until socket_site resrouce is updated to natively support
 resource "null_resource" "configure_secondary_azure_vsocket" {
-  depends_on = [ null_resource.delay-120 ]
+  depends_on = [null_resource.delay-300]
 
   provisioner "local-exec" {
     command = <<EOF
@@ -189,11 +178,18 @@ resource "null_resource" "configure_secondary_azure_vsocket" {
   }
 }
 
+# Sleep to allow Secondary vSocket serial retrieval
+resource "null_resource" "sleep_30_seconds" {
+  provisioner "local-exec" {
+    command = "sleep 30"
+  }
+  depends_on = [null_resource.configure_secondary_azure_vsocket]
+}
 
 # Create Secondary Vsocket Virtual Machine
 data "cato_accountSnapshotSite" "azure-site-secondary" {
-  depends_on = [ null_resource.configure_secondary_azure_vsocket ]
-  id = cato_socket_site.azure-site.id
+  depends_on = [null_resource.sleep_30_seconds]
+  id         = cato_socket_site.azure-site.id
 }
 
 locals {
@@ -217,24 +213,24 @@ resource "azurerm_virtual_machine" "vsocket_secondary" {
     storage_uri = ""
   }
   storage_os_disk {
-    create_option     = "Attach"
-    name              = "${var.site_name}-vSocket-disk-secondary"
-    managed_disk_id   = azurerm_managed_disk.vSocket_disk_secondary.id
-    os_type = "Linux"
+    create_option   = "Attach"
+    name            = "${var.site_name}-vSocket-disk-secondary"
+    managed_disk_id = azurerm_managed_disk.vSocket_disk_secondary.id
+    os_type         = "Linux"
   }
 
   identity {
-    type = "UserAssigned"
+    type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.CatoHaIdentity.id]
   }
-  
+
   depends_on = [
     azurerm_managed_disk.vSocket_disk_secondary
   ]
 }
 
 resource "azurerm_managed_disk" "vSocket_disk_secondary" {
-  depends_on = [ data.cato_accountSnapshotSite.azure-site-secondary ]
+  depends_on           = [data.cato_accountSnapshotSite.azure-site-secondary]
   name                 = "${var.site_name}-vSocket-disk-secondary"
   location             = var.location
   resource_group_name  = var.resource_group_name
@@ -249,12 +245,12 @@ resource "azurerm_managed_disk" "vSocket_disk_secondary" {
 }
 
 variable "commands-secondary" {
-  type    = list(string)
+  type = list(string)
   default = [
     "rm /cato/deviceid.txt",
     "rm /cato/socket/configuration/socket_registration.json",
     "nohup /cato/socket/run_socket_daemon.sh &"
-   ]
+  ]
 }
 
 resource "azurerm_virtual_machine_extension" "vsocket-custom-script-secondary" {
@@ -318,31 +314,31 @@ output "lan-sec-mac" {
 
 # Role assignments for secondary lan nic and subnet
 resource "azurerm_role_assignment" "secondary_nic_ha_role" {
-  principal_id = azurerm_user_assigned_identity.CatoHaIdentity.principal_id
+  principal_id         = azurerm_user_assigned_identity.CatoHaIdentity.principal_id
   role_definition_name = "Virtual Machine Contributor"
-  scope = "${data.azurerm_network_interface.lan_secondary.id}"
-  depends_on = [ azurerm_virtual_machine.vsocket_secondary ]
+  scope                = data.azurerm_network_interface.lan_secondary.id
+  depends_on           = [azurerm_virtual_machine.vsocket_secondary]
 }
 
 resource "azurerm_role_assignment" "lan-subnet-role" {
-  principal_id = azurerm_user_assigned_identity.CatoHaIdentity.principal_id
+  principal_id         = azurerm_user_assigned_identity.CatoHaIdentity.principal_id
   role_definition_name = "Virtual Machine Contributor"
-  scope = "/subscriptions/${var.azure_subscription_id}/resourcegroups/${var.resource_group_name}/providers/Microsoft.Network/virtualNetworks/${var.vnet_name}/subnets/${var.lan_subnet_name}"
-  depends_on = [ azurerm_user_assigned_identity.CatoHaIdentity ]
+  scope                = "/subscriptions/${var.azure_subscription_id}/resourcegroups/${var.resource_group_name}/providers/Microsoft.Network/virtualNetworks/${var.vnet_name}/subnets/${var.lan_subnet_name}"
+  depends_on           = [azurerm_user_assigned_identity.CatoHaIdentity]
 }
 
 #Temporary role assignments for primary
 resource "azurerm_role_assignment" "primary_nic_ha_role" {
-  principal_id = azurerm_user_assigned_identity.CatoHaIdentity.principal_id
+  principal_id         = azurerm_user_assigned_identity.CatoHaIdentity.principal_id
   role_definition_name = "Virtual Machine Contributor"
-  scope = "/subscriptions/${var.azure_subscription_id}/resourcegroups/${var.resource_group_name}/providers/Microsoft.Network/networkInterfaces/${data.azurerm_network_interface.lan_primary.name}"
-  depends_on = [ azurerm_user_assigned_identity.CatoHaIdentity ]
+  scope                = "/subscriptions/${var.azure_subscription_id}/resourcegroups/${var.resource_group_name}/providers/Microsoft.Network/networkInterfaces/${data.azurerm_network_interface.lan_primary.name}"
+  depends_on           = [azurerm_user_assigned_identity.CatoHaIdentity]
 }
 
 
 # Time delay to allow for vsockets to upgrade
 resource "null_resource" "delay" {
-  depends_on = [ null_resource.run_command_ha_secondary ]
+  depends_on = [null_resource.run_command_ha_secondary]
   provisioner "local-exec" {
     command = "sleep 10"
   }
@@ -375,8 +371,16 @@ resource "null_resource" "reboot_vsocket_secondary" {
 
 # Time delay to allow for vsockets to configure HA
 resource "null_resource" "delay_ha" {
-  depends_on = [ null_resource.run_command_ha_secondary ]
+  depends_on = [null_resource.run_command_ha_secondary]
   provisioner "local-exec" {
     command = "sleep 300"
   }
+}
+
+resource "cato_license" "license" {
+  depends_on = [null_resource.reboot_vsocket_secondary]
+  count      = var.license_id == null ? 0 : 1
+  site_id    = cato_socket_site.azure-site.id
+  license_id = var.license_id
+  bw         = var.license_bw == null ? null : var.license_bw
 }

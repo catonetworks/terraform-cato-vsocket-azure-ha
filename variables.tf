@@ -79,49 +79,41 @@ variable "disk_size_gb" {
 variable "location" {
   description = "(Required) The Azure region where the resources should be deployed."
   type        = string
-  default     = null
 }
 
 variable "resource_group_name" {
   description = "(Required) The name of the Azure Resource Group where all resources will be created."
   type        = string
-  default     = null
 }
 
 variable "mgmt_nic_name_primary" {
   description = "The name of the primary management network interface."
   type        = string
-  default     = null
 }
 
 variable "wan_nic_name_primary" {
   description = "The name of the primary WAN network interface."
   type        = string
-  default     = null
 }
 
 variable "lan_nic_name_primary" {
   description = "The name of the primary LAN network interface."
   type        = string
-  default     = null
 }
 
 variable "mgmt_nic_name_secondary" {
   description = "The name of the secondary management network interface."
   type        = string
-  default     = null
 }
 
 variable "wan_nic_name_secondary" {
   description = "The name of the secondary WAN network interface."
   type        = string
-  default     = null
 }
 
 variable "lan_nic_name_secondary" {
   description = "The name of the secondary LAN network interface."
   type        = string
-  default     = null
 }
 
 variable "floating_ip" {
@@ -148,4 +140,61 @@ variable "vnet_name" {
 variable "lan_subnet_name" {
   description = "The name of the LAN subnet within the specified VNET."
   type        = string
+}
+
+variable "subnet_range_mgmt" {
+  type        = string
+  description = <<EOT
+    Choose a range within the VPC to use as the Management subnet. This subnet will be used initially to access the public internet and register your vSocket to the Cato Cloud.
+    The minimum subnet length to support High Availability is /28.
+    The accepted input format is Standard CIDR Notation, e.g. X.X.X.X/X
+	EOT
+}
+
+variable "subnet_range_wan" {
+  type        = string
+  description = <<EOT
+    Choose a range within the VPC to use as the Public/WAN subnet. This subnet will be used to access the public internet and securely tunnel to the Cato Cloud.
+    The minimum subnet length to support High Availability is /28.
+    The accepted input format is Standard CIDR Notation, e.g. X.X.X.X/X
+	EOT
+}
+
+variable "subnet_range_lan" {
+  type        = string
+  description = <<EOT
+    Choose a range within the VPC to use as the Private/LAN subnet. This subnet will host the target LAN interface of the vSocket so resources in the VPC (or AWS Region) can route to the Cato Cloud.
+    The minimum subnet length to support High Availability is /29.
+    The accepted input format is Standard CIDR Notation, e.g. X.X.X.X/X
+	EOT
+}
+
+variable "vnet_prefix" {
+  type        = string
+  description = <<EOT
+  	Choose a unique range for your new VPC that does not conflict with the rest of your Wide Area Network.
+    The accepted input format is Standard CIDR Notation, e.g. X.X.X.X/X
+	EOT
+}
+
+variable "dns_servers" {
+  type = list(string)
+  default = [
+    "10.254.254.1",  # Cato Cloud DNS
+    "168.63.129.16", # Azure DNS
+    "1.1.1.1",
+    "8.8.8.8"
+  ]
+}
+
+variable "license_id" {
+  description = "The license ID for the Cato vSocket of license type CATO_SITE, CATO_SSE_SITE, CATO_PB, CATO_PB_SSE.  Example License ID value: 'abcde123-abcd-1234-abcd-abcde1234567'.  Note that licenses are for commercial accounts, and not supported for trial accounts."
+  type        = string
+  default     = null
+}
+
+variable "license_bw" {
+  description = "The license bandwidth number for the cato site, specifying bandwidth ONLY applies for pooled licenses.  For a standard site license that is not pooled, leave this value null. Must be a number greater than 0 and an increment of 10."
+  type        = string
+  default     = null
 }
