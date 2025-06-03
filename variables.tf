@@ -53,7 +53,15 @@ variable "site_location" {
   }
 }
 
-variable "lan_prefix" {
+variable "native_network_range" {
+  type        = string
+  description = <<EOT
+  	Choose a unique range for your Azure environment that does not conflict with the rest of your Wide Area Network.
+    The accepted input format is Standard CIDR Notation, e.g. X.X.X.X/X
+	EOT
+}
+
+variable "subnet_range_lan" {
   description = "LAN subnet prefix in CIDR notation (e.g., X.X.X.X/X)."
   type        = string
 }
@@ -142,14 +150,6 @@ variable "lan_subnet_name" {
   type        = string
 }
 
-variable "vnet_prefix" {
-  type        = string
-  description = <<EOT
-  	Choose a unique range for your new VPC that does not conflict with the rest of your Wide Area Network.
-    The accepted input format is Standard CIDR Notation, e.g. X.X.X.X/X
-	EOT
-}
-
 variable "dns_servers" {
   type = list(string)
   default = [
@@ -170,4 +170,20 @@ variable "license_bw" {
   description = "The license bandwidth number for the cato site, specifying bandwidth ONLY applies for pooled licenses.  For a standard site license that is not pooled, leave this value null. Must be a number greater than 0 and an increment of 10."
   type        = string
   default     = null
+}
+
+variable "tags" {
+  description = "A Map of Key = Value to describe infrastructure"
+  type        = map(any)
+  default     = null
+}
+
+
+variable "commands" {
+  type = list(string)
+  default = [
+    "rm /cato/deviceid.txt",
+    "rm /cato/socket/configuration/socket_registration.json",
+    "nohup /cato/socket/run_socket_daemon.sh &"
+  ]
 }

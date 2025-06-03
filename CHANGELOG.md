@@ -22,3 +22,14 @@
 
 ### Features
 - Added sleep null resources between primary socket creation and 
+
+## 0.1.0 (2025-06-03)
+- Added Tags 
+- Added native_network_range for Socket_Site to Standardize Naming of vars across modules 
+- Moved Variable commands to variables.tf 
+- Added ignore-changes to several resources 
+- Added Delay for Destroy to prevent error when the socket hasn't been disconnected long enough to destroy the site. 
+- changed lan_prefix to subnet_range_lan to standardize variable names 
+- Added additional output 
+- removed unused variable "vnet_prefix"
+- Updated readme with additional information and tf-docs

@@ -34,7 +34,7 @@ resource "cato_socket_site" "azure-site" {
   description     = var.site_description
   name            = var.site_name
   native_range = {
-    native_network_range = var.lan_prefix
+    native_network_range = var.native_network_range
     local_ip             = data.azurerm_network_interface.lan_primary.private_ip_address
   }
   site_location = var.site_location
@@ -54,6 +54,7 @@ resource "azurerm_user_assigned_identity" "CatoHaIdentity" {
   location            = var.location
   name                = "CatoHaIdentity"
   resource_group_name = var.resource_group_name
+  tags                = var.tags
 }
 
 # Create Primary Vsocket Virtual Machine
@@ -85,9 +86,17 @@ resource "azurerm_virtual_machine" "vsocket_primary" {
     identity_ids = [azurerm_user_assigned_identity.CatoHaIdentity.id]
   }
 
+  tags = var.tags
+
   depends_on = [
-    azurerm_managed_disk.vSocket_disk_primary
+    azurerm_managed_disk.vSocket_disk_primary,
+    data.cato_accountSnapshotSite.azure-site-2
   ]
+
+  lifecycle {
+    ignore_changes = [network_interface_ids, primary_network_interface_id]
+  }
+
 }
 
 resource "azurerm_managed_disk" "vSocket_disk_primary" {
@@ -99,18 +108,10 @@ resource "azurerm_managed_disk" "vSocket_disk_primary" {
   disk_size_gb         = var.disk_size_gb
   os_type              = "Linux"
   image_reference_id   = var.image_reference_id
+  tags                 = var.tags
   lifecycle {
     ignore_changes = all
   }
-}
-
-variable "commands" {
-  type = list(string)
-  default = [
-    "rm /cato/deviceid.txt",
-    "rm /cato/socket/configuration/socket_registration.json",
-    "nohup /cato/socket/run_socket_daemon.sh &"
-  ]
 }
 
 resource "azurerm_virtual_machine_extension" "vsocket-custom-script-primary" {
@@ -224,9 +225,16 @@ resource "azurerm_virtual_machine" "vsocket_secondary" {
     identity_ids = [azurerm_user_assigned_identity.CatoHaIdentity.id]
   }
 
+  tags = var.tags
+
   depends_on = [
-    azurerm_managed_disk.vSocket_disk_secondary
+    azurerm_managed_disk.vSocket_disk_secondary,
+    data.cato_accountSnapshotSite.azure-site-2
   ]
+
+  lifecycle {
+    ignore_changes = [network_interface_ids, primary_network_interface_id]
+  }
 }
 
 resource "azurerm_managed_disk" "vSocket_disk_secondary" {
@@ -239,6 +247,7 @@ resource "azurerm_managed_disk" "vSocket_disk_secondary" {
   disk_size_gb         = var.disk_size_gb
   os_type              = "Linux"
   image_reference_id   = var.image_reference_id
+  tags                 = var.tags
   lifecycle {
     ignore_changes = all
   }
@@ -281,7 +290,7 @@ resource "null_resource" "run_command_ha_primary" {
         --resource-group ${var.resource_group_name} \
         --name "${var.site_name}-vSocket-Primary" \
         --command-id RunShellScript \
-        --scripts "echo '{\"location\": \"${var.location}\", \"subscription_id\": \"${var.azure_subscription_id}\", \"vnet\": \"${var.vnet_name}\", \"group\": \"${var.resource_group_name}\", \"vnet_group\": \"${var.resource_group_name}\", \"subnet\": \"${var.lan_subnet_name}\", \"nic\": \"${data.azurerm_network_interface.lan_primary.name}\", \"ha_nic\": \"${data.azurerm_network_interface.lan_secondary.name}\", \"lan_nic_ip\": \"${data.azurerm_network_interface.lan_primary.private_ip_address}\", \"lan_nic_mac\": \"${data.azurerm_network_interface.lan_primary.mac_address}\", \"subnet_cidr\": \"${var.lan_prefix}\", \"az_mgmt_url\": \"management.azure.com\"}' > /cato/socket/configuration/vm_config.json"
+        --scripts "echo '{\"location\": \"${var.location}\", \"subscription_id\": \"${var.azure_subscription_id}\", \"vnet\": \"${var.vnet_name}\", \"group\": \"${var.resource_group_name}\", \"vnet_group\": \"${var.resource_group_name}\", \"subnet\": \"${var.lan_subnet_name}\", \"nic\": \"${data.azurerm_network_interface.lan_primary.name}\", \"ha_nic\": \"${data.azurerm_network_interface.lan_secondary.name}\", \"lan_nic_ip\": \"${data.azurerm_network_interface.lan_primary.private_ip_address}\", \"lan_nic_mac\": \"${data.azurerm_network_interface.lan_primary.mac_address}\", \"subnet_cidr\": \"${var.subnet_range_lan}\", \"az_mgmt_url\": \"management.azure.com\"}' > /cato/socket/configuration/vm_config.json"
     EOT
   }
 
@@ -297,7 +306,7 @@ resource "null_resource" "run_command_ha_secondary" {
         --resource-group ${var.resource_group_name} \
         --name "${var.site_name}-vSocket-Secondary" \
         --command-id RunShellScript \
-        --scripts "echo '{\"location\": \"${var.location}\", \"subscription_id\": \"${var.azure_subscription_id}\", \"vnet\": \"${var.vnet_name}\", \"group\": \"${var.resource_group_name}\", \"vnet_group\": \"${var.resource_group_name}\", \"subnet\": \"${var.lan_subnet_name}\", \"nic\": \"${data.azurerm_network_interface.lan_secondary.name}\", \"ha_nic\": \"${data.azurerm_network_interface.lan_primary.name}\", \"lan_nic_ip\": \"${data.azurerm_network_interface.lan_secondary.private_ip_address}\", \"lan_nic_mac\": \"${data.azurerm_network_interface.lan_secondary.mac_address}\", \"subnet_cidr\": \"${var.lan_prefix}\", \"az_mgmt_url\": \"management.azure.com\"}' > /cato/socket/configuration/vm_config.json"
+        --scripts "echo '{\"location\": \"${var.location}\", \"subscription_id\": \"${var.azure_subscription_id}\", \"vnet\": \"${var.vnet_name}\", \"group\": \"${var.resource_group_name}\", \"vnet_group\": \"${var.resource_group_name}\", \"subnet\": \"${var.lan_subnet_name}\", \"nic\": \"${data.azurerm_network_interface.lan_secondary.name}\", \"ha_nic\": \"${data.azurerm_network_interface.lan_primary.name}\", \"lan_nic_ip\": \"${data.azurerm_network_interface.lan_secondary.private_ip_address}\", \"lan_nic_mac\": \"${data.azurerm_network_interface.lan_secondary.mac_address}\", \"subnet_cidr\": \"${var.subnet_range_lan}\", \"az_mgmt_url\": \"management.azure.com\"}' > /cato/socket/configuration/vm_config.json"
     EOT
   }
 
@@ -307,17 +316,15 @@ resource "null_resource" "run_command_ha_secondary" {
 }
 
 
-# Collect MAC addess of Secondary LAN interface
-output "lan-sec-mac" {
-  value = data.azurerm_network_interface.lan_secondary.mac_address
-}
-
 # Role assignments for secondary lan nic and subnet
 resource "azurerm_role_assignment" "secondary_nic_ha_role" {
   principal_id         = azurerm_user_assigned_identity.CatoHaIdentity.principal_id
   role_definition_name = "Virtual Machine Contributor"
   scope                = data.azurerm_network_interface.lan_secondary.id
   depends_on           = [azurerm_virtual_machine.vsocket_secondary]
+  lifecycle {
+    ignore_changes = [scope]
+  }
 }
 
 resource "azurerm_role_assignment" "lan-subnet-role" {
@@ -369,13 +376,19 @@ resource "null_resource" "reboot_vsocket_secondary" {
   ]
 }
 
-# Time delay to allow for vsockets to configure HA
-resource "null_resource" "delay_ha" {
-  depends_on = [null_resource.run_command_ha_secondary]
+# Allow vSocket to be disconnected to delete site
+resource "null_resource" "sleep_before_delete" {
   provisioner "local-exec" {
-    command = "sleep 300"
+    when    = destroy
+    command = "sleep 10"
   }
 }
+
+data "cato_accountSnapshotSite" "azure-site-2" {
+  id         = cato_socket_site.azure-site.id
+  depends_on = [null_resource.sleep_before_delete]
+}
+
 
 resource "cato_license" "license" {
   depends_on = [null_resource.reboot_vsocket_secondary]

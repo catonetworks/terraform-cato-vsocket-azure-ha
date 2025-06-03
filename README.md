@@ -9,6 +9,16 @@ Terraform module which creates an Azure Socket Site in the Cato Management Appli
 ## Usage
 
 ```hcl
+
+variable azure_subscription_id {
+  default = "xxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+}
+
+variable cato_token {}
+variable baseurl {}
+variable account_id {}
+
+
 provider "azurerm" {
   subscription_id = var.azure_subscription_id
   features {}
@@ -26,6 +36,7 @@ module "vsocket-azure-ha" {
   account_id              = "xxxxxxx"
   location                = "East US"
   resource_group_name     = "Your Resource Group Name Here"
+  azure_subsciption_id    = var.azure_subscription_id
   subnet_range_mgmt       = "10.3.1.0/24"
   subnet_range_wan        = "10.3.2.0/24"
   subnet_range_lan        = "10.3.3.0/24"
@@ -37,7 +48,8 @@ module "vsocket-azure-ha" {
   wan_nic_name_secondary  = "wan-nic-secondary"
   lan_nic_name_secondary  = "lan-nic-secondary"
   floating_ip             = "10.3.3.6"
-  lan_prefix              = "10.3.3.0/24"
+  subnet_range_lan        = "10.3.3.0/24"
+  native_network_range    = "10.3.0.0/16"
   vnet_name               = "Your VNET Name HERE"
   site_name               = "Azure_Socket_Site"
   site_description        = "Azure Socket Site East US"
@@ -47,6 +59,9 @@ module "vsocket-azure-ha" {
     country_code = "US"
     state_code   = "US-NY" ## Optional - for coutnries with states
     timezone     = "America/New_York"
+  }
+  tags = { 
+    key = "value"
   }
 }
 ```
@@ -111,12 +126,12 @@ No modules.
 | [null_resource.configure_secondary_azure_vsocket](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
 | [null_resource.delay](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
 | [null_resource.delay-300](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
-| [null_resource.delay_ha](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
 | [null_resource.reboot_vsocket_primary](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
 | [null_resource.reboot_vsocket_secondary](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
 | [null_resource.run_command_ha_primary](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
 | [null_resource.run_command_ha_secondary](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
 | [null_resource.sleep_30_seconds](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
+| [null_resource.sleep_before_delete](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
 | [azurerm_network_interface.lan_primary](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/network_interface) | data source |
 | [azurerm_network_interface.lan_secondary](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/network_interface) | data source |
 | [azurerm_network_interface.mgmt_primary](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/network_interface) | data source |
@@ -124,6 +139,7 @@ No modules.
 | [azurerm_network_interface.wan_primary](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/network_interface) | data source |
 | [azurerm_network_interface.wan_secondary](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/data-sources/network_interface) | data source |
 | [cato_accountSnapshotSite.azure-site](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/data-sources/accountSnapshotSite) | data source |
+| [cato_accountSnapshotSite.azure-site-2](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/data-sources/accountSnapshotSite) | data source |
 | [cato_accountSnapshotSite.azure-site-secondary](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/data-sources/accountSnapshotSite) | data source |
 
 ## Inputs
@@ -141,22 +157,23 @@ No modules.
 | <a name="input_image_reference_id"></a> [image\_reference\_id](#input\_image\_reference\_id) | The path to the image used to deploy a specific version of the virtual socket. | `string` | `"/Subscriptions/38b5ec1d-b3b6-4f50-a34e-f04a67121955/Providers/Microsoft.Compute/Locations/eastus/Publishers/catonetworks/ArtifactTypes/VMImage/Offers/cato_socket/Skus/public-cato-socket/Versions/19.0.17805"` | no |
 | <a name="input_lan_nic_name_primary"></a> [lan\_nic\_name\_primary](#input\_lan\_nic\_name\_primary) | The name of the primary LAN network interface. | `string` | n/a | yes |
 | <a name="input_lan_nic_name_secondary"></a> [lan\_nic\_name\_secondary](#input\_lan\_nic\_name\_secondary) | The name of the secondary LAN network interface. | `string` | n/a | yes |
-| <a name="input_lan_prefix"></a> [lan\_prefix](#input\_lan\_prefix) | LAN subnet prefix in CIDR notation (e.g., X.X.X.X/X). | `string` | n/a | yes |
 | <a name="input_lan_subnet_name"></a> [lan\_subnet\_name](#input\_lan\_subnet\_name) | The name of the LAN subnet within the specified VNET. | `string` | n/a | yes |
 | <a name="input_license_bw"></a> [license\_bw](#input\_license\_bw) | The license bandwidth number for the cato site, specifying bandwidth ONLY applies for pooled licenses.  For a standard site license that is not pooled, leave this value null. Must be a number greater than 0 and an increment of 10. | `string` | `null` | no |
 | <a name="input_license_id"></a> [license\_id](#input\_license\_id) | The license ID for the Cato vSocket of license type CATO\_SITE, CATO\_SSE\_SITE, CATO\_PB, CATO\_PB\_SSE.  Example License ID value: 'abcde123-abcd-1234-abcd-abcde1234567'.  Note that licenses are for commercial accounts, and not supported for trial accounts. | `string` | `null` | no |
 | <a name="input_location"></a> [location](#input\_location) | (Required) The Azure region where the resources should be deployed. | `string` | n/a | yes |
 | <a name="input_mgmt_nic_name_primary"></a> [mgmt\_nic\_name\_primary](#input\_mgmt\_nic\_name\_primary) | The name of the primary management network interface. | `string` | n/a | yes |
 | <a name="input_mgmt_nic_name_secondary"></a> [mgmt\_nic\_name\_secondary](#input\_mgmt\_nic\_name\_secondary) | The name of the secondary management network interface. | `string` | n/a | yes |
+| <a name="input_native_network_range"></a> [native\_network\_range](#input\_native\_network\_range) | Choose a unique range for your Azure environment that does not conflict with the rest of your Wide Area Network.<br/>    The accepted input format is Standard CIDR Notation, e.g. X.X.X.X/X | `string` | n/a | yes |
 | <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name) | (Required) The name of the Azure Resource Group where all resources will be created. | `string` | n/a | yes |
 | <a name="input_site_description"></a> [site\_description](#input\_site\_description) | A brief description of the site for identification purposes. | `string` | n/a | yes |
 | <a name="input_site_location"></a> [site\_location](#input\_site\_location) | The physical location of the site, including city, country code, state code, and timezone. | <pre>object({<br/>    city         = string<br/>    country_code = string<br/>    state_code   = string<br/>    timezone     = string<br/>  })</pre> | <pre>{<br/>  "city": "New York",<br/>  "country_code": "US",<br/>  "state_code": "US-NY",<br/>  "timezone": "America/New_York"<br/>}</pre> | no |
 | <a name="input_site_name"></a> [site\_name](#input\_site\_name) | The name of the Cato Networks site. | `string` | `null` | no |
 | <a name="input_site_type"></a> [site\_type](#input\_site\_type) | The type of the site (DATACENTER, BRANCH, CLOUD\_DC, HEADQUARTERS). | `string` | `"CLOUD_DC"` | no |
+| <a name="input_subnet_range_lan"></a> [subnet\_range\_lan](#input\_subnet\_range\_lan) | LAN subnet prefix in CIDR notation (e.g., X.X.X.X/X). | `string` | n/a | yes |
+| <a name="input_tags"></a> [tags](#input\_tags) | A Map of Key = Value to describe infrastructure | `map(any)` | `null` | no |
 | <a name="input_token"></a> [token](#input\_token) | API token used to authenticate with the Cato Networks API. | `any` | n/a | yes |
 | <a name="input_vm_size"></a> [vm\_size](#input\_vm\_size) | (Required) Specifies the size of the Virtual Machine. See Azure VM Naming Conventions: https://learn.microsoft.com/en-us/azure/virtual-machines/vm-naming-conventions | `string` | `"Standard_D8ls_v5"` | no |
 | <a name="input_vnet_name"></a> [vnet\_name](#input\_vnet\_name) | The name of the Virtual Network (VNET) where the vSockets will be deployed. | `string` | n/a | yes |
-| <a name="input_vnet_prefix"></a> [vnet\_prefix](#input\_vnet\_prefix) | Choose a unique range for your new VPC that does not conflict with the rest of your Wide Area Network.<br/>    The accepted input format is Standard CIDR Notation, e.g. X.X.X.X/X | `string` | n/a | yes |
 | <a name="input_wan_nic_name_primary"></a> [wan\_nic\_name\_primary](#input\_wan\_nic\_name\_primary) | The name of the primary WAN network interface. | `string` | n/a | yes |
 | <a name="input_wan_nic_name_secondary"></a> [wan\_nic\_name\_secondary](#input\_wan\_nic\_name\_secondary) | The name of the secondary WAN network interface. | `string` | n/a | yes |
 

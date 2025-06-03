@@ -139,3 +139,8 @@ output "vsocket_secondary_reboot_status" {
   value       = "Reboot triggered via Terraform"
   depends_on  = [null_resource.reboot_vsocket_secondary]
 }
+
+# Collect MAC addess of Secondary LAN interface
+output "lan-sec-mac" {
+  value = data.azurerm_network_interface.lan_secondary.mac_address
+}
