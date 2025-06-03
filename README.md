@@ -32,8 +32,8 @@ provider "cato" {
 
 module "vsocket-azure-ha" {
   source                  = "catonetworks/vsocket-azure-ha/cato"
-  token                   = "xxxxxxx"
-  account_id              = "xxxxxxx"
+  token                   = var.cato_token
+  account_id              = var.account_id
   location                = "East US"
   resource_group_name     = "Your Resource Group Name Here"
   azure_subsciption_id    = var.azure_subscription_id
