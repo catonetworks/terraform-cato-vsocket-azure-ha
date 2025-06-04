@@ -78,6 +78,11 @@ $ catocli query siteLocation -h
 $ catocli query siteLocation '{"filters":[{"search": "San Diego","field":"city","operation":"exact"}]}' -p
 ```
 
+## Example Diagram
+<details><summary> Example Diagram </summary> 
+<img src=./images/terraform-cato-vsocket-azure-ha.png></img>
+</details>
+
 ## Authors
 
 Module is maintained by [Cato Networks](https://github.com/catonetworks) with help from [these awesome contributors](https://github.com/catonetworks/terraform-cato-vsocket-azure-ha/graphs/contributors).
