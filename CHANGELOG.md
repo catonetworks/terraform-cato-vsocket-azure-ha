@@ -33,3 +33,8 @@
 - Added additional output 
 - removed unused variable "vnet_prefix"
 - Updated readme with additional information and tf-docs
+
+## 0.1.1 (2025-06-13)
+
+### Features 
+- Added Naming convention to Managed Identity Resource 

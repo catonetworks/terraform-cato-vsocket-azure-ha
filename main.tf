@@ -52,7 +52,7 @@ locals {
 # Create HA user Assigned Identity
 resource "azurerm_user_assigned_identity" "CatoHaIdentity" {
   location            = var.location
-  name                = "CatoHaIdentity"
+  name                = "${var.site_name}-CatoHaIdentity" ###Needing to be unique add ${sitename}-
   resource_group_name = var.resource_group_name
   tags                = var.tags
 }
