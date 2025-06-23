@@ -38,3 +38,9 @@
 
 ### Features 
 - Added Naming convention to Managed Identity Resource 
+
+## 0.2.0 (2025-06-23)
+
+### Features 
+- Updated module to use the new azurerm_linux_virtual_machine resource, as the azurerm_virtual_machine resource is no longer maintained by Azure/Terraform.
+

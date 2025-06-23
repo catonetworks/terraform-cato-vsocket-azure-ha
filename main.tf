@@ -1,3 +1,18 @@
+
+## Create random strings for auth, as a socket does not allow auth but the instance requires it
+resource "random_string" "vsocket-random-username" {
+  length  = 16
+  special = false
+}
+
+resource "random_string" "vsocket-random-password" {
+  length  = 16
+  special = false
+  upper   = true
+  lower   = true
+  numeric = true
+}
+
 ## vSocket Module Resources
 data "azurerm_network_interface" "mgmt_primary" {
   name                = var.mgmt_nic_name_primary
@@ -58,60 +73,77 @@ resource "azurerm_user_assigned_identity" "CatoHaIdentity" {
 }
 
 # Create Primary Vsocket Virtual Machine
-resource "azurerm_virtual_machine" "vsocket_primary" {
-  location                     = var.location
-  name                         = "${var.site_name}-vSocket-Primary"
-  network_interface_ids        = [data.azurerm_network_interface.mgmt_primary.id, data.azurerm_network_interface.wan_primary.id, data.azurerm_network_interface.lan_primary.id]
-  primary_network_interface_id = data.azurerm_network_interface.mgmt_primary.id
-  resource_group_name          = var.resource_group_name
-  vm_size                      = var.vm_size
-  plan {
-    name      = "public-cato-socket"
-    product   = "cato_socket"
-    publisher = "catonetworks"
-  }
+resource "azurerm_linux_virtual_machine" "vsocket_primary" {
+  location            = var.location
+  name                = "${var.site_name}-vSocket-Primary"
+  computer_name       = replace("${var.site_name}-vSocket-Primary", "/[\\\\/\\[\\]:|<>+=;,?*@&~!#$%^()_{}' ]/", "-")
+  resource_group_name = var.resource_group_name
+  size                = var.vm_size
+  network_interface_ids = [
+    data.azurerm_network_interface.mgmt_primary.id,
+    data.azurerm_network_interface.wan_primary.id,
+    data.azurerm_network_interface.lan_primary.id
+  ]
+  disable_password_authentication = false
+  provision_vm_agent              = true
+  allow_extension_operations      = true
+  admin_username                  = random_string.vsocket-random-username.result
+  admin_password                  = "${random_string.vsocket-random-password.result}@"
+
+  # Boot diagnostics
   boot_diagnostics {
-    enabled     = true
-    storage_uri = ""
-  }
-  storage_os_disk {
-    create_option   = "Attach"
-    name            = "${var.site_name}-vSocket-disk-primary"
-    managed_disk_id = azurerm_managed_disk.vSocket_disk_primary.id
-    os_type         = "Linux"
+    storage_account_uri = "" # Empty string enables boot diagnostics
   }
 
+  # Assign CatoHaIdentity to the Vsocket
   identity {
     type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.CatoHaIdentity.id]
   }
 
-  tags = var.tags
+  # OS disk configuration from image
+  os_disk {
+    name                 = "${var.site_name}-vSocket-disk-primary"
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+    disk_size_gb         = 8
+  }
+
+  plan {
+    name      = "public-cato-socket"
+    publisher = "catonetworks"
+    product   = "cato_socket"
+  }
+
+  source_image_reference {
+    publisher = "catonetworks"
+    offer     = "cato_socket"
+    sku       = "public-cato-socket"
+    version   = "23.0.19605"
+  }
 
   depends_on = [
-    azurerm_managed_disk.vSocket_disk_primary,
     data.cato_accountSnapshotSite.azure-site-2
   ]
-
-  lifecycle {
-    ignore_changes = [network_interface_ids, primary_network_interface_id]
-  }
-
+  tags = var.tags
 }
 
-resource "azurerm_managed_disk" "vSocket_disk_primary" {
-  name                 = "${var.site_name}-vSocket-disk-primary"
-  location             = var.location
-  resource_group_name  = var.resource_group_name
-  storage_account_type = "Standard_LRS"
-  create_option        = "FromImage"
-  disk_size_gb         = var.disk_size_gb
-  os_type              = "Linux"
-  image_reference_id   = var.image_reference_id
-  tags                 = var.tags
-  lifecycle {
-    ignore_changes = all
-  }
+# To allow mac address to be retrieved
+resource "time_sleep" "sleep_5_seconds" {
+  create_duration = "5s"
+  depends_on      = [azurerm_linux_virtual_machine.vsocket_primary]
+}
+
+data "azurerm_network_interface" "wan_mac_primary" {
+  name                = var.wan_nic_name_primary
+  resource_group_name = var.resource_group_name
+  depends_on          = [time_sleep.sleep_5_seconds]
+}
+
+data "azurerm_network_interface" "lan_mac_primary" {
+  name                = var.lan_nic_name_primary
+  resource_group_name = var.resource_group_name
+  depends_on          = [time_sleep.sleep_5_seconds]
 }
 
 resource "azurerm_virtual_machine_extension" "vsocket-custom-script-primary" {
@@ -120,17 +152,22 @@ resource "azurerm_virtual_machine_extension" "vsocket-custom-script-primary" {
   publisher                  = "Microsoft.Azure.Extensions"
   type                       = "CustomScript"
   type_handler_version       = "2.1"
-  virtual_machine_id         = azurerm_virtual_machine.vsocket_primary.id
+  virtual_machine_id         = azurerm_linux_virtual_machine.vsocket_primary.id
   lifecycle {
     ignore_changes = all
   }
   settings = <<SETTINGS
- {
-  "commandToExecute": "${"echo '${local.primary_serial[0]}' > /cato/serial.txt"};${join(";", var.commands)}"
- }
+  {
+  "commandToExecute": "echo '{\"wan_ip\" : \"${data.azurerm_network_interface.wan_primary.private_ip_address}\", \"wan_name\" : \"${data.azurerm_network_interface.wan_primary.name}\", \"wan_nic_mac\" : \"${lower(replace(data.azurerm_network_interface.wan_mac_primary.mac_address, "-", ":"))}\", \"lan_ip\" : \"${data.azurerm_network_interface.lan_primary.private_ip_address}\", \"lan_name\" : \"${data.azurerm_network_interface.lan_primary.name}\", \"lan_nic_mac\" : \"${lower(replace(data.azurerm_network_interface.lan_mac_primary.mac_address, "-", ":"))}\"}' > /cato/nics_config.json; echo '${local.primary_serial[0]}' > /cato/serial.txt;${join(";", var.commands)}"
+  }
 SETTINGS
   depends_on = [
-    azurerm_virtual_machine.vsocket_primary
+    azurerm_linux_virtual_machine.vsocket_primary,
+    data.azurerm_network_interface.mgmt_primary,
+    data.azurerm_network_interface.wan_primary,
+    data.azurerm_network_interface.lan_primary,
+    data.azurerm_network_interface.lan_mac_primary,
+    data.azurerm_network_interface.wan_mac_primary
   ]
 }
 
@@ -197,67 +234,82 @@ locals {
   secondary_serial = [for s in data.cato_accountSnapshotSite.azure-site-secondary.info.sockets : s.serial if s.is_primary == false]
 }
 
-resource "azurerm_virtual_machine" "vsocket_secondary" {
-  location                     = var.location
-  name                         = "${var.site_name}-vSocket-Secondary"
-  network_interface_ids        = [data.azurerm_network_interface.mgmt_secondary.id, data.azurerm_network_interface.wan_secondary.id, data.azurerm_network_interface.lan_secondary.id]
-  primary_network_interface_id = data.azurerm_network_interface.mgmt_secondary.id
-  resource_group_name          = var.resource_group_name
-  vm_size                      = var.vm_size
-  plan {
-    name      = "public-cato-socket"
-    product   = "cato_socket"
-    publisher = "catonetworks"
-  }
+resource "azurerm_linux_virtual_machine" "vsocket_secondary" {
+  location            = var.location
+  name                = "${var.site_name}-vSocket-Secondary"
+  computer_name       = replace("${var.site_name}-vSocket-Secondary", "/[\\\\/\\[\\]:|<>+=;,?*@&~!#$%^()_{}' ]/", "-")
+  resource_group_name = var.resource_group_name
+  size                = var.vm_size
+  network_interface_ids = [
+    data.azurerm_network_interface.mgmt_secondary.id,
+    data.azurerm_network_interface.wan_secondary.id,
+    data.azurerm_network_interface.lan_secondary.id
+  ]
+  disable_password_authentication = false
+  provision_vm_agent              = true
+  allow_extension_operations      = true
+  admin_username                  = random_string.vsocket-random-username.result
+  admin_password                  = "${random_string.vsocket-random-password.result}@"
+
+  # Boot diagnostics
   boot_diagnostics {
-    enabled     = true
-    storage_uri = ""
-  }
-  storage_os_disk {
-    create_option   = "Attach"
-    name            = "${var.site_name}-vSocket-disk-secondary"
-    managed_disk_id = azurerm_managed_disk.vSocket_disk_secondary.id
-    os_type         = "Linux"
+    storage_account_uri = "" # Empty string enables boot diagnostics
   }
 
+  # Assign CatoHaIdentity to the Vsocket
   identity {
     type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.CatoHaIdentity.id]
   }
 
-  tags = var.tags
+  # OS disk configuration from image
+  os_disk {
+    name                 = "${var.site_name}-vSocket-disk-secondary"
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+    disk_size_gb         = 8
+  }
+
+  plan {
+    name      = "public-cato-socket"
+    publisher = "catonetworks"
+    product   = "cato_socket"
+  }
+
+  source_image_reference {
+    publisher = "catonetworks"
+    offer     = "cato_socket"
+    sku       = "public-cato-socket"
+    version   = "23.0.19605"
+  }
 
   depends_on = [
-    azurerm_managed_disk.vSocket_disk_secondary,
-    data.cato_accountSnapshotSite.azure-site-2
+    data.cato_accountSnapshotSite.azure-site-secondary
   ]
-
-  lifecycle {
-    ignore_changes = [network_interface_ids, primary_network_interface_id]
-  }
+  tags = var.tags
 }
 
-resource "azurerm_managed_disk" "vSocket_disk_secondary" {
-  depends_on           = [data.cato_accountSnapshotSite.azure-site-secondary]
-  name                 = "${var.site_name}-vSocket-disk-secondary"
-  location             = var.location
-  resource_group_name  = var.resource_group_name
-  storage_account_type = "Standard_LRS"
-  create_option        = "FromImage"
-  disk_size_gb         = var.disk_size_gb
-  os_type              = "Linux"
-  image_reference_id   = var.image_reference_id
-  tags                 = var.tags
-  lifecycle {
-    ignore_changes = all
-  }
+# To allow mac address to be retrieved
+resource "time_sleep" "sleep_5_seconds_secondary" {
+  create_duration = "5s"
+  depends_on      = [azurerm_linux_virtual_machine.vsocket_secondary]
+}
+
+data "azurerm_network_interface" "wan_mac_secondary" {
+  name                = var.wan_nic_name_secondary
+  resource_group_name = var.resource_group_name
+  depends_on          = [time_sleep.sleep_5_seconds_secondary]
+}
+
+data "azurerm_network_interface" "lan_mac_secondary" {
+  name                = var.lan_nic_name_secondary
+  resource_group_name = var.resource_group_name
+  depends_on          = [time_sleep.sleep_5_seconds_secondary]
 }
 
 variable "commands-secondary" {
   type = list(string)
   default = [
-    "rm /cato/deviceid.txt",
-    "rm /cato/socket/configuration/socket_registration.json",
     "nohup /cato/socket/run_socket_daemon.sh &"
   ]
 }
@@ -268,17 +320,23 @@ resource "azurerm_virtual_machine_extension" "vsocket-custom-script-secondary" {
   publisher                  = "Microsoft.Azure.Extensions"
   type                       = "CustomScript"
   type_handler_version       = "2.1"
-  virtual_machine_id         = azurerm_virtual_machine.vsocket_secondary.id
+  virtual_machine_id         = azurerm_linux_virtual_machine.vsocket_secondary.id
   lifecycle {
     ignore_changes = all
   }
+
   settings = <<SETTINGS
- {
-  "commandToExecute": "${"echo '${local.secondary_serial[0]}' > /cato/serial.txt"};${join(";", var.commands-secondary)}"
- }
-SETTINGS
+  {
+  "commandToExecute": "echo '{\"wan_ip\" : \"${data.azurerm_network_interface.wan_secondary.private_ip_address}\", \"wan_name\" : \"${data.azurerm_network_interface.wan_secondary.name}\", \"wan_nic_mac\" : \"${lower(replace(data.azurerm_network_interface.wan_mac_secondary.mac_address, "-", ":"))}\", \"lan_ip\" : \"${data.azurerm_network_interface.lan_secondary.private_ip_address}\", \"lan_name\" : \"${data.azurerm_network_interface.lan_secondary.name}\", \"lan_nic_mac\" : \"${lower(replace(data.azurerm_network_interface.lan_mac_secondary.mac_address, "-", ":"))}\"}' > /cato/nics_config.json; echo '${local.secondary_serial[0]}' > /cato/serial.txt;${join(";", var.commands)}"
+  }
+  SETTINGS
   depends_on = [
-    azurerm_virtual_machine.vsocket_secondary
+    azurerm_linux_virtual_machine.vsocket_secondary,
+    data.azurerm_network_interface.mgmt_secondary,
+    data.azurerm_network_interface.wan_secondary,
+    data.azurerm_network_interface.lan_secondary,
+    data.azurerm_network_interface.wan_mac_secondary,
+    data.azurerm_network_interface.lan_mac_secondary
   ]
 }
 
@@ -315,13 +373,12 @@ resource "null_resource" "run_command_ha_secondary" {
   ]
 }
 
-
 # Role assignments for secondary lan nic and subnet
 resource "azurerm_role_assignment" "secondary_nic_ha_role" {
   principal_id         = azurerm_user_assigned_identity.CatoHaIdentity.principal_id
   role_definition_name = "Virtual Machine Contributor"
   scope                = data.azurerm_network_interface.lan_secondary.id
-  depends_on           = [azurerm_virtual_machine.vsocket_secondary]
+  depends_on           = [azurerm_linux_virtual_machine.vsocket_secondary]
   lifecycle {
     ignore_changes = [scope]
   }
@@ -334,14 +391,12 @@ resource "azurerm_role_assignment" "lan-subnet-role" {
   depends_on           = [azurerm_user_assigned_identity.CatoHaIdentity]
 }
 
-#Temporary role assignments for primary
 resource "azurerm_role_assignment" "primary_nic_ha_role" {
   principal_id         = azurerm_user_assigned_identity.CatoHaIdentity.principal_id
   role_definition_name = "Virtual Machine Contributor"
-  scope                = "/subscriptions/${var.azure_subscription_id}/resourcegroups/${var.resource_group_name}/providers/Microsoft.Network/networkInterfaces/${data.azurerm_network_interface.lan_primary.name}"
+  scope                = data.azurerm_network_interface.lan_primary.id
   depends_on           = [azurerm_user_assigned_identity.CatoHaIdentity]
 }
-
 
 # Time delay to allow for vsockets to upgrade
 resource "null_resource" "delay" {
