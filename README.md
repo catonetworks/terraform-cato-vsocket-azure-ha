@@ -154,6 +154,7 @@ No modules.
 | [cato_accountSnapshotSite.azure-site](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/data-sources/accountSnapshotSite) | data source |
 | [cato_accountSnapshotSite.azure-site-2](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/data-sources/accountSnapshotSite) | data source |
 | [cato_accountSnapshotSite.azure-site-secondary](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/data-sources/accountSnapshotSite) | data source |
+| [cato_siteLocation.site_location](https://registry.terraform.io/providers/catonetworks/cato/latest/docs/data-sources/siteLocation) | data source |
 
 ## Inputs
 
@@ -179,7 +180,7 @@ No modules.
 | <a name="input_native_network_range"></a> [native\_network\_range](#input\_native\_network\_range) | Choose a unique range for your Azure environment that does not conflict with the rest of your Wide Area Network.<br/>    The accepted input format is Standard CIDR Notation, e.g. X.X.X.X/X | `string` | n/a | yes |
 | <a name="input_resource_group_name"></a> [resource\_group\_name](#input\_resource\_group\_name) | (Required) The name of the Azure Resource Group where all resources will be created. | `string` | n/a | yes |
 | <a name="input_site_description"></a> [site\_description](#input\_site\_description) | A brief description of the site for identification purposes. | `string` | n/a | yes |
-| <a name="input_site_location"></a> [site\_location](#input\_site\_location) | The physical location of the site, including city, country code, state code, and timezone. | <pre>object({<br/>    city         = string<br/>    country_code = string<br/>    state_code   = string<br/>    timezone     = string<br/>  })</pre> | <pre>{<br/>  "city": "New York",<br/>  "country_code": "US",<br/>  "state_code": "US-NY",<br/>  "timezone": "America/New_York"<br/>}</pre> | no |
+| <a name="input_site_location"></a> [site\_location](#input\_site\_location) | Site location which is used by the Cato Socket to connect to the closest Cato PoP. If not specified, the location will be derived from the Azure region dynamicaly. | <pre>object({<br/>    city         = string<br/>    country_code = string<br/>    state_code   = string<br/>    timezone     = string<br/>  })</pre> | <pre>{<br/>  "city": null,<br/>  "country_code": null,<br/>  "state_code": null,<br/>  "timezone": null<br/>}</pre> | no |
 | <a name="input_site_name"></a> [site\_name](#input\_site\_name) | The name of the Cato Networks site. | `string` | `null` | no |
 | <a name="input_site_type"></a> [site\_type](#input\_site\_type) | The type of the site (DATACENTER, BRANCH, CLOUD\_DC, HEADQUARTERS). | `string` | `"CLOUD_DC"` | no |
 | <a name="input_subnet_range_lan"></a> [subnet\_range\_lan](#input\_subnet\_range\_lan) | LAN subnet prefix in CIDR notation (e.g., X.X.X.X/X). | `string` | n/a | yes |
@@ -209,6 +210,7 @@ No modules.
 | <a name="output_mgmt_secondary_nic_id"></a> [mgmt\_secondary\_nic\_id](#output\_mgmt\_secondary\_nic\_id) | ID of the Management Secondary Network Interface |
 | <a name="output_primary_nic_role_assignment_id"></a> [primary\_nic\_role\_assignment\_id](#output\_primary\_nic\_role\_assignment\_id) | Role Assignment ID for the Primary NIC |
 | <a name="output_secondary_nic_role_assignment_id"></a> [secondary\_nic\_role\_assignment\_id](#output\_secondary\_nic\_role\_assignment\_id) | Role Assignment ID for the Secondary NIC |
+| <a name="output_site_location"></a> [site\_location](#output\_site\_location) | n/a |
 | <a name="output_vsocket_primary_reboot_status"></a> [vsocket\_primary\_reboot\_status](#output\_vsocket\_primary\_reboot\_status) | Status of the Primary vSocket VM Reboot |
 | <a name="output_vsocket_primary_vm_id"></a> [vsocket\_primary\_vm\_id](#output\_vsocket\_primary\_vm\_id) | ID of the Primary vSocket Virtual Machine |
 | <a name="output_vsocket_primary_vm_name"></a> [vsocket\_primary\_vm\_name](#output\_vsocket\_primary\_vm\_name) | Name of the Primary vSocket Virtual Machine |

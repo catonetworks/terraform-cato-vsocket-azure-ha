@@ -52,7 +52,7 @@ resource "cato_socket_site" "azure-site" {
     native_network_range = var.native_network_range
     local_ip             = data.azurerm_network_interface.lan_primary.private_ip_address
   }
-  site_location = var.site_location
+  site_location = local.cur_site_location
   site_type     = var.site_type
 }
 

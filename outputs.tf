@@ -11,6 +11,10 @@ output "cato_site_name" {
   value       = cato_socket_site.azure-site.name
 }
 
+output "site_location" {
+  value = local.cur_site_location
+}
+
 output "cato_primary_serial" {
   description = "Primary Cato Socket Serial Number"
   value       = try(local.primary_serial[0], "N/A")

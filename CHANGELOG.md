@@ -44,3 +44,7 @@
 ### Features 
 - Updated module to use the new azurerm_linux_virtual_machine resource, as the azurerm_virtual_machine resource is no longer maintained by Azure/Terraform.
 
+## 0.2.1 (2025-06-24)
+
+### Features
+- Updated module to include site_location dynamic resolution from azure region.
