@@ -106,7 +106,3 @@ locals {
     "brazilsouth" = { city = "São Paulo", state = "São Paulo", country = "Brazil", continent = "South America", timezone = "UTC-3" }
   }
 }
-
-output "site_location" {
-  value = data.cato_siteLocation.site_location
-}

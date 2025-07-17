@@ -60,3 +60,6 @@
 
 ### Features 
  - Fix malformed sitelocation.tf
+
+## 0.2.4 (2025-07-17)
+ - Remove duplicate output
