@@ -55,3 +55,8 @@
  - Updated SiteLocation(v0.0.2)
  - Version locked Cato Provider to v0.0.30
  - Version locked Terraform to v1.5
+
+## 0.2.3 (2025-07-17)
+
+### Features 
+ - Fix malformed sitelocation.tf
