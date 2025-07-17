@@ -48,3 +48,10 @@
 
 ### Features
 - Updated module to include site_location dynamic resolution from azure region.
+
+## 0.2.2 (2025-07-17)
+
+### Features
+ - Updated SiteLocation(v0.0.2)
+ - Version locked Cato Provider to v0.0.30
+ - Version locked Terraform to v1.5
