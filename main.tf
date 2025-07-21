@@ -54,6 +54,10 @@ resource "cato_socket_site" "azure-site" {
   }
   site_location = local.cur_site_location
   site_type     = var.site_type
+
+  lifecycle {
+    ignore_changes = [native_range.local_ip] #Floating IP expected to Change depending on Active Config
+  }
 }
 
 data "cato_accountSnapshotSite" "azure-site" {
@@ -451,4 +455,17 @@ resource "cato_license" "license" {
   site_id    = cato_socket_site.azure-site.id
   license_id = var.license_id
   bw         = var.license_bw == null ? null : var.license_bw
+}
+
+resource "cato_network_range" "routedAzure" {
+  for_each   = var.routed_networks
+  site_id    = cato_socket_site.azure-site.id
+  name       = each.key
+  range_type = "Routed"
+  gateway    = var.routed_ranges_gateway == null ? local.lan_first_ip : var.routed_ranges_gateway
+
+  # Access attributes from the value object
+  subnet            = each.value.subnet
+  translated_subnet = var.enable_static_range_translation ? coalesce(each.value.translated_subnet, each.value.subnet) : null
+  # This will be null if not defined, and the provider will ignore it.
 }
