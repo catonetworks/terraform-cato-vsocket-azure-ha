@@ -63,3 +63,10 @@
 
 ## 0.2.4 (2025-07-17)
  - Remove duplicate output
+
+## 0.2.5 (2025-07-21)
+ - Added support for Static Range Translation
+ - Added support for Routed Ranges 
+ - Updated SiteLocation for Poland and Switzerland
+ - Updated Readme for Clarity around SRT and Translated Networks 
+ - Added Version requirements to Azure Provider

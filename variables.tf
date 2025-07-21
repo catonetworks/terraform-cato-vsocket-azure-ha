@@ -179,6 +179,45 @@ variable "tags" {
 }
 
 
+
+variable "enable_static_range_translation" {
+  description = "Enables the ability to use translated ranges"
+  type        = string
+  default     = false
+}
+
+variable "routed_networks" {
+  description = <<EOF
+  A map of routed networks to be accessed behind the vSocket site.
+  - The key is the logical name for the network.
+  - The value is an object containing:
+    - "subnet" (string, required): The actual CIDR range of the network.
+    - "translated_subnet" (string, optional): The NATed CIDR range if translation is used.
+  Example: 
+  routed_networks = {
+    "Peered-VNET-1" = {
+      subnet = "10.100.1.0/24"
+    }
+    "On-Prem-Network-NAT" = {
+      subnet            = "192.168.51.0/24"
+      translated_subnet = "10.200.1.0/24"
+    }
+  }
+  EOF
+  type = map(object({
+    subnet            = string
+    translated_subnet = optional(string)
+  }))
+  default = {}
+}
+
+# This variable remains the same as it applies to all networks.
+variable "routed_ranges_gateway" {
+  description = "Routed ranges gateway. If null, the first IP of the LAN subnet will be used."
+  type        = string
+  default     = null
+}
+
 variable "commands" {
   type = list(string)
   default = [
