@@ -70,3 +70,10 @@
  - Updated SiteLocation for Poland and Switzerland
  - Updated Readme for Clarity around SRT and Translated Networks 
  - Added Version requirements to Azure Provider
+
+## 0.2.6 (2025-08-01)
+
+### Features
+ - Updated to use latest provider version 
+  - Adjusted routed_networks call to include interface_index 
+ - Version Lock to Provider version 0.0.38 or greater
