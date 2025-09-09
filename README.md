@@ -59,12 +59,10 @@ module "vsocket-azure-ha" {
   routed_networks = {
     "Peered-VNET-1" = {
       subnet = "10.100.1.0/24"
-      # interface_index is omitted, so it will default to "LAN1".
     }
     "On-Prem-Network-With-NAT" = {
       subnet            = "192.168.51.0/24"
       translated_subnet = "10.250.3.0/24" # Example translated range, SRT Required, set 
-      interface_index = "LAN2" # Overriding the default value.
       gateway = "192.168.51.254" # Overriding the default value of LAN1 LocalIP
     }
   }

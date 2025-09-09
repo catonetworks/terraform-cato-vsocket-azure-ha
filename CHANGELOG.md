@@ -77,3 +77,9 @@
  - Updated to use latest provider version 
   - Adjusted routed_networks call to include interface_index 
  - Version Lock to Provider version 0.0.38 or greater
+
+ ## 0.2.7 (2025-09-09)
+
+### Features
+ - Adjusted routed_networks call to use interface_index = "LAN1" as only option for vSockets
+ - Updated readme routed networks for clear definition

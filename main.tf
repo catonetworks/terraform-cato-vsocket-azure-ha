@@ -463,7 +463,7 @@ resource "cato_network_range" "routedAzure" {
   name            = each.key
   range_type      = "Routed"
   gateway         = coalesce(each.value.gateway, local.lan_first_ip)
-  interface_index = each.value.interface_index
+  interface_index = "LAN1"
   # Access attributes from the value object
   subnet            = each.value.subnet
   translated_subnet = var.enable_static_range_translation ? coalesce(each.value.translated_subnet, each.value.subnet) : null
