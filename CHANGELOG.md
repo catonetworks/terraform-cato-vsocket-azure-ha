@@ -83,3 +83,7 @@
 ### Features
  - Adjusted routed_networks call to use interface_index = "LAN1" as only option for vSockets
  - Updated readme routed networks for clear definition
+
+## 0.2.8 (2026-02-18)
+### Features
+- Reverted to provider version 0.0.57 to address local_ip and gateway api param issue in state
