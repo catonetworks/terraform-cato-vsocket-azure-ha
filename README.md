@@ -11,6 +11,18 @@ Terraform module which creates an Azure Socket Site in the Cato Management Appli
 ## Usage
 
 ```hcl
+terraform {
+  required_providers {
+    cato = {
+      source = "catonetworks/cato"
+      version = "0.0.57-1"
+    }
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 4.33"
+    }
+  }
+}
 
 variable azure_subscription_id {
   default = "xxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
