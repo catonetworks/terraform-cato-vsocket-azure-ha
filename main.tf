@@ -344,37 +344,63 @@ resource "azurerm_virtual_machine_extension" "vsocket-custom-script-secondary" {
   ]
 }
 
-# Create HA Settings Secondary
-resource "null_resource" "run_command_ha_primary" {
-  provisioner "local-exec" {
-    command = <<EOT
-      az vm run-command invoke \
-        --resource-group ${var.resource_group_name} \
-        --name "${var.site_name}-vSocket-Primary" \
-        --command-id RunShellScript \
-        --scripts "echo '{\"location\": \"${var.location}\", \"subscription_id\": \"${var.azure_subscription_id}\", \"vnet\": \"${var.vnet_name}\", \"group\": \"${var.resource_group_name}\", \"vnet_group\": \"${var.resource_group_name}\", \"subnet\": \"${var.lan_subnet_name}\", \"nic\": \"${data.azurerm_network_interface.lan_primary.name}\", \"ha_nic\": \"${data.azurerm_network_interface.lan_secondary.name}\", \"lan_nic_ip\": \"${data.azurerm_network_interface.lan_primary.private_ip_address}\", \"lan_nic_mac\": \"${data.azurerm_network_interface.lan_primary.mac_address}\", \"subnet_cidr\": \"${var.subnet_range_lan}\", \"az_mgmt_url\": \"management.azure.com\"}' > /cato/socket/configuration/vm_config.json"
-    EOT
+# Create HA Settings
+resource "azurerm_virtual_machine_run_command" "run_command_ha_primary" {
+  name               = "ha-config-primary"
+  location           = var.location
+  virtual_machine_id = azurerm_linux_virtual_machine.vsocket_primary.id
+
+  source {
+    script = "echo '${jsonencode({
+      location        = var.location
+      subscription_id = var.azure_subscription_id
+      vnet            = var.vnet_name
+      group           = var.resource_group_name
+      vnet_group      = var.resource_group_name
+      subnet          = var.lan_subnet_name
+      nic             = data.azurerm_network_interface.lan_primary.name
+      ha_nic          = data.azurerm_network_interface.lan_secondary.name
+      lan_nic_ip      = data.azurerm_network_interface.lan_primary.private_ip_address
+      lan_nic_mac     = data.azurerm_network_interface.lan_primary.mac_address
+      subnet_cidr     = var.subnet_range_lan
+      az_mgmt_url     = "management.azure.com"
+    })}' > /cato/socket/configuration/vm_config.json"
   }
 
-  depends_on = [
-    azurerm_virtual_machine_extension.vsocket-custom-script-secondary
-  ]
+  lifecycle {
+    ignore_changes = all
+  }
+
+  depends_on = [azurerm_virtual_machine_extension.vsocket-custom-script-secondary]
 }
 
-resource "null_resource" "run_command_ha_secondary" {
-  provisioner "local-exec" {
-    command = <<EOT
-      az vm run-command invoke \
-        --resource-group ${var.resource_group_name} \
-        --name "${var.site_name}-vSocket-Secondary" \
-        --command-id RunShellScript \
-        --scripts "echo '{\"location\": \"${var.location}\", \"subscription_id\": \"${var.azure_subscription_id}\", \"vnet\": \"${var.vnet_name}\", \"group\": \"${var.resource_group_name}\", \"vnet_group\": \"${var.resource_group_name}\", \"subnet\": \"${var.lan_subnet_name}\", \"nic\": \"${data.azurerm_network_interface.lan_secondary.name}\", \"ha_nic\": \"${data.azurerm_network_interface.lan_primary.name}\", \"lan_nic_ip\": \"${data.azurerm_network_interface.lan_secondary.private_ip_address}\", \"lan_nic_mac\": \"${data.azurerm_network_interface.lan_secondary.mac_address}\", \"subnet_cidr\": \"${var.subnet_range_lan}\", \"az_mgmt_url\": \"management.azure.com\"}' > /cato/socket/configuration/vm_config.json"
-    EOT
+resource "azurerm_virtual_machine_run_command" "run_command_ha_secondary" {
+  name               = "ha-config-secondary"
+  location           = var.location
+  virtual_machine_id = azurerm_linux_virtual_machine.vsocket_secondary.id
+
+  source {
+    script = "echo '${jsonencode({
+      location        = var.location
+      subscription_id = var.azure_subscription_id
+      vnet            = var.vnet_name
+      group           = var.resource_group_name
+      vnet_group      = var.resource_group_name
+      subnet          = var.lan_subnet_name
+      nic             = data.azurerm_network_interface.lan_secondary.name
+      ha_nic          = data.azurerm_network_interface.lan_primary.name
+      lan_nic_ip      = data.azurerm_network_interface.lan_secondary.private_ip_address
+      lan_nic_mac     = data.azurerm_network_interface.lan_secondary.mac_address
+      subnet_cidr     = var.subnet_range_lan
+      az_mgmt_url     = "management.azure.com"
+    })}' > /cato/socket/configuration/vm_config.json"
   }
 
-  depends_on = [
-    azurerm_virtual_machine_extension.vsocket-custom-script-secondary
-  ]
+  lifecycle {
+    ignore_changes = all
+  }
+
+  depends_on = [azurerm_virtual_machine_extension.vsocket-custom-script-secondary]
 }
 
 # Role assignments for secondary lan nic and subnet
@@ -404,35 +430,44 @@ resource "azurerm_role_assignment" "primary_nic_ha_role" {
 
 # Time delay to allow for vsockets to upgrade
 resource "null_resource" "delay" {
-  depends_on = [null_resource.run_command_ha_secondary]
+  depends_on = [azurerm_virtual_machine_run_command.run_command_ha_secondary]
   provisioner "local-exec" {
     command = "sleep 10"
   }
 }
 
 # Reboot both vsockets
-resource "null_resource" "reboot_vsocket_primary" {
-  provisioner "local-exec" {
-    command = <<EOT
-      az vm restart --resource-group "${var.resource_group_name}" --name "${var.site_name}-vSocket-Primary"
-    EOT
+resource "azurerm_virtual_machine_run_command" "reboot_vsocket_primary" {
+  name               = "reboot-primary"
+  location           = var.location
+  virtual_machine_id = azurerm_linux_virtual_machine.vsocket_primary.id
+
+  source {
+    # Forks the reboot so RunCommand can report success before the VM restarts
+    script = "nohup sh -c 'sleep 5 && reboot' &"
   }
 
-  depends_on = [
-    null_resource.run_command_ha_secondary
-  ]
+  lifecycle {
+    ignore_changes = all
+  }
+
+  depends_on = [azurerm_virtual_machine_run_command.run_command_ha_secondary]
 }
 
-resource "null_resource" "reboot_vsocket_secondary" {
-  provisioner "local-exec" {
-    command = <<EOT
-      az vm restart --resource-group "${var.resource_group_name}" --name "${var.site_name}-vSocket-Secondary"
-    EOT
+resource "azurerm_virtual_machine_run_command" "reboot_vsocket_secondary" {
+  name               = "reboot-secondary"
+  location           = var.location
+  virtual_machine_id = azurerm_linux_virtual_machine.vsocket_secondary.id
+
+  source {
+    script = "nohup sh -c 'sleep 5 && reboot' &"
   }
 
-  depends_on = [
-    null_resource.run_command_ha_secondary
-  ]
+  lifecycle {
+    ignore_changes = all
+  }
+
+  depends_on = [azurerm_virtual_machine_run_command.run_command_ha_secondary]
 }
 
 # Allow vSocket to be disconnected to delete site
@@ -450,7 +485,7 @@ data "cato_accountSnapshotSite" "azure-site-2" {
 
 
 resource "cato_license" "license" {
-  depends_on = [null_resource.reboot_vsocket_secondary]
+  depends_on = [azurerm_virtual_machine_run_command.reboot_vsocket_secondary]
   count      = var.license_id == null ? 0 : 1
   site_id    = cato_socket_site.azure-site.id
   license_id = var.license_id
