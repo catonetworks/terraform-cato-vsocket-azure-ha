@@ -129,6 +129,13 @@ resource "azurerm_linux_virtual_machine" "vsocket_primary" {
   depends_on = [
     data.cato_accountSnapshotSite.azure-site-2
   ]
+
+  lifecycle {
+    ignore_changes = [
+      identity
+    ]
+  }
+
   tags = var.tags
 }
 
@@ -290,6 +297,13 @@ resource "azurerm_linux_virtual_machine" "vsocket_secondary" {
   depends_on = [
     data.cato_accountSnapshotSite.azure-site-secondary
   ]
+
+  lifecycle {
+    ignore_changes = [ 
+      identity
+    ]
+  }
+
   tags = var.tags
 }
 
