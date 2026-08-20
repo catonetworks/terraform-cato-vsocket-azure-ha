@@ -113,14 +113,14 @@ output "lan_secondary_mac_address" {
 # Reboot Status Outputs
 output "vsocket_primary_reboot_status" {
   description = "Status of the Primary vSocket VM Reboot"
-  value       = "Reboot triggered via Terraform"
-  depends_on  = [azurerm_virtual_machine_run_command.reboot_vsocket_primary]
+  value       = "Reboot completed and guest agent verified via Terraform"
+  depends_on  = [azapi_resource.verify_primary_reboot]
 }
 
 output "vsocket_secondary_reboot_status" {
   description = "Status of the Secondary vSocket VM Reboot"
-  value       = "Reboot triggered via Terraform"
-  depends_on  = [azurerm_virtual_machine_run_command.reboot_vsocket_secondary]
+  value       = "Reboot completed and guest agent verified via Terraform"
+  depends_on  = [azapi_resource.verify_secondary_reboot]
 }
 
 # Collect MAC addess of Secondary LAN interface

@@ -132,7 +132,7 @@ resource "azurerm_linux_virtual_machine" "vsocket_primary" {
 
   lifecycle {
     ignore_changes = [
-      identity
+      identity[0].type
     ]
   }
 
@@ -299,8 +299,8 @@ resource "azurerm_linux_virtual_machine" "vsocket_secondary" {
   ]
 
   lifecycle {
-    ignore_changes = [ 
-      identity
+    ignore_changes = [
+      identity[0].type
     ]
   }
 
@@ -442,30 +442,93 @@ resource "azurerm_role_assignment" "primary_nic_ha_role" {
   depends_on           = [azurerm_user_assigned_identity.CatoHaIdentity]
 }
 
-# Time delay to allow for vsockets to upgrade
+locals {
+  vsocket_reboot_script = <<-EOT
+    set -eu
+    cat /proc/sys/kernel/random/boot_id > /cato/socket/configuration/terraform-reboot-boot-id
+    nohup sh -c 'sleep 5 && reboot' >/dev/null 2>&1 </dev/null &
+  EOT
+
+  vsocket_reboot_script_sha256 = sha256(local.vsocket_reboot_script)
+
+  verify_vsocket_reboot_script = <<-EOT
+    set -eu
+    previous_boot_id="$(cat /cato/socket/configuration/terraform-reboot-boot-id)"
+    current_boot_id="$(cat /proc/sys/kernel/random/boot_id)"
+    test "$current_boot_id" != "$previous_boot_id"
+    test -s /cato/socket/configuration/vm_config.json
+    # reboot-script-sha256: ${local.vsocket_reboot_script_sha256}
+  EOT
+}
+
+# Allow HA configuration and role assignments to settle before rebooting.
 resource "null_resource" "delay" {
-  depends_on = [azurerm_virtual_machine_run_command.run_command_ha_secondary]
+  depends_on = [
+    azurerm_virtual_machine_run_command.run_command_ha_primary,
+    azurerm_virtual_machine_run_command.run_command_ha_secondary,
+    azurerm_role_assignment.secondary_nic_ha_role,
+    azurerm_role_assignment.lan-subnet-role,
+    azurerm_role_assignment.primary_nic_ha_role
+  ]
+
+  triggers = {
+    primary_ha_command_id   = azurerm_virtual_machine_run_command.run_command_ha_primary.id
+    secondary_ha_command_id = azurerm_virtual_machine_run_command.run_command_ha_secondary.id
+    secondary_nic_role_id   = azurerm_role_assignment.secondary_nic_ha_role.id
+    lan_subnet_role_id      = azurerm_role_assignment.lan-subnet-role.id
+    primary_nic_role_id     = azurerm_role_assignment.primary_nic_ha_role.id
+    reboot_script_sha256    = local.vsocket_reboot_script_sha256
+  }
+
   provisioner "local-exec" {
     command = "sleep 10"
   }
 }
 
-# Reboot both vsockets
+# Reboot and verify each vSocket sequentially to preserve HA availability.
 resource "azurerm_virtual_machine_run_command" "reboot_vsocket_primary" {
   name               = "reboot-primary"
   location           = var.location
   virtual_machine_id = azurerm_linux_virtual_machine.vsocket_primary.id
 
   source {
-    # Forks the reboot so RunCommand can report success before the VM restarts
-    script = "nohup sh -c 'sleep 5 && reboot' &"
+    script = local.vsocket_reboot_script
+  }
+
+  depends_on = [null_resource.delay]
+}
+
+resource "time_sleep" "wait_for_primary_reboot" {
+  create_duration = "30s"
+  depends_on      = [azurerm_virtual_machine_run_command.reboot_vsocket_primary]
+
+  triggers = {
+    reboot_command_id    = azurerm_virtual_machine_run_command.reboot_vsocket_primary.id
+    reboot_script_sha256 = local.vsocket_reboot_script_sha256
+  }
+}
+
+resource "azapi_resource" "verify_primary_reboot" {
+  type      = "Microsoft.Compute/virtualMachines/runCommands@2023-03-01"
+  name      = "verify-reboot-primary"
+  parent_id = azurerm_linux_virtual_machine.vsocket_primary.id
+  location  = var.location
+
+  body = {
+    properties = {
+      source = {
+        script = local.verify_vsocket_reboot_script
+      }
+      timeoutInSeconds                = 900
+      treatFailureAsDeploymentFailure = true
+    }
   }
 
   lifecycle {
-    ignore_changes = all
+    replace_triggered_by = [time_sleep.wait_for_primary_reboot]
   }
 
-  depends_on = [azurerm_virtual_machine_run_command.run_command_ha_secondary]
+  depends_on = [time_sleep.wait_for_primary_reboot]
 }
 
 resource "azurerm_virtual_machine_run_command" "reboot_vsocket_secondary" {
@@ -474,14 +537,43 @@ resource "azurerm_virtual_machine_run_command" "reboot_vsocket_secondary" {
   virtual_machine_id = azurerm_linux_virtual_machine.vsocket_secondary.id
 
   source {
-    script = "nohup sh -c 'sleep 5 && reboot' &"
+    script = local.vsocket_reboot_script
+  }
+
+  depends_on = [azapi_resource.verify_primary_reboot]
+}
+
+resource "time_sleep" "wait_for_secondary_reboot" {
+  create_duration = "30s"
+  depends_on      = [azurerm_virtual_machine_run_command.reboot_vsocket_secondary]
+
+  triggers = {
+    reboot_command_id    = azurerm_virtual_machine_run_command.reboot_vsocket_secondary.id
+    reboot_script_sha256 = local.vsocket_reboot_script_sha256
+  }
+}
+
+resource "azapi_resource" "verify_secondary_reboot" {
+  type      = "Microsoft.Compute/virtualMachines/runCommands@2023-03-01"
+  name      = "verify-reboot-secondary"
+  parent_id = azurerm_linux_virtual_machine.vsocket_secondary.id
+  location  = var.location
+
+  body = {
+    properties = {
+      source = {
+        script = local.verify_vsocket_reboot_script
+      }
+      timeoutInSeconds                = 900
+      treatFailureAsDeploymentFailure = true
+    }
   }
 
   lifecycle {
-    ignore_changes = all
+    replace_triggered_by = [time_sleep.wait_for_secondary_reboot]
   }
 
-  depends_on = [azurerm_virtual_machine_run_command.run_command_ha_secondary]
+  depends_on = [time_sleep.wait_for_secondary_reboot]
 }
 
 # Allow vSocket to be disconnected to delete site
@@ -499,7 +591,7 @@ data "cato_accountSnapshotSite" "azure-site-2" {
 
 
 resource "cato_license" "license" {
-  depends_on = [azurerm_virtual_machine_run_command.reboot_vsocket_secondary]
+  depends_on = [azapi_resource.verify_secondary_reboot]
   count      = var.license_id == null ? 0 : 1
   site_id    = cato_socket_site.azure-site.id
   license_id = var.license_id
