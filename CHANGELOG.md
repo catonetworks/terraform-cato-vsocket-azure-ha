@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.13 (2026-09-01)
+
+### Changed
+- Removed `.terraform.lock.hcl` from the release
+
 ## 0.2.12 (2026-09-01)
 
 ### Changed
