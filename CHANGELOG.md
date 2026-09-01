@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.12 (2026-09-01)
+
+### Changed
+- Replaced Azure CLI-based VM commands with Azure VM run command resources
+- Added sequential vSocket reboot verification
+- Added the Azure API provider requirement
+
 ## 0.2.11 (2026-06-30)
 
 ### Changed
