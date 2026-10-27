@@ -196,13 +196,17 @@ resource "null_resource" "configure_secondary_azure_vsocket" {
   depends_on = [null_resource.delay-300]
 
   provisioner "local-exec" {
+    environment = {
+      CATO_TOKEN   = var.token
+      BASEURL      = var.baseurl
+    }
     command = <<EOF
       # Execute the GraphQL mutation to get the site id
       response=$(curl -k -X POST \
         -H "Accept: application/json" \
         -H "Content-Type: application/json" \
-        -H "x-API-Key: ${var.token}" \
-        "${var.baseurl}" \
+        -H "x-API-Key: $CATO_TOKEN" \
+        "$BASEURL" \
         --data '{
           "query": "mutation siteAddSecondaryAzureVSocket($accountId: ID!, $addSecondaryAzureVSocketInput: AddSecondaryAzureVSocketInput!) { site(accountId: $accountId) { addSecondaryAzureVSocket(input: $addSecondaryAzureVSocketInput) { id } } }",
           "variables": {
